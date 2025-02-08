@@ -1,0 +1,6 @@
+print(10%5)
+print(11%5)
+print(-1%5)
+print(15/2)
+print(15//2)
+print(15**2)
