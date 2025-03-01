@@ -69,6 +69,15 @@ p2.show()
 
 print(p1.dist(p2))  # Output: Distance between p1 and p2
 
+p1.move(0, 1)
+p2.move(2, 3)
+
+p1.show()
+p2.show()
+
+print(p1.dist(p2))
+
+
 class Account:
     def __init__(self, owner, balance=0):
         self.owner = owner
