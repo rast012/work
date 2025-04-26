@@ -1,6 +1,4 @@
 import pygame, random
-
-# Color presets
 colorWHITE = (255, 255, 255)
 colorGRAY = (200, 200, 200)
 colorBLACK = (0, 0, 0)
@@ -8,119 +6,157 @@ colorRED = (255, 0, 0)
 colorGREEN = (0, 255, 0)
 colorBLUE = (0, 0, 255)
 colorYELLOW = (255, 255, 0)
-
 pygame.init()
-
 WIDTH = 600
 HEIGHT = 600
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+CELL = 20  # Pixel size for grid cells
+GRID_WIDTH = WIDTH // CELL # In pixels
+GRID_HEIGHT = HEIGHT // CELL # In pixels
 
-screen = pygame.display.set_mode((HEIGHT, WIDTH))
-
-CELL = 20  # Cell size in pixels
-
-def draw_grid():
-    for i in range(HEIGHT // 2):
-        for j in range(WIDTH // 2):
-            pygame.draw.rect(screen, colorGRAY, (i * CELL, j * CELL, CELL, CELL), 1)
+# Initial game variables
+score = 0
+level = 1
+FPS = 5  # Initial speed ie, the longer the snake, faster the game
 
 def draw_grid_chess():
     colors = [colorWHITE, colorGRAY]
-    for i in range(HEIGHT // 2):
-        for j in range(WIDTH // 2):
-            pygame.draw.rect(screen, colors[(i + j) % 2], (i * CELL, j * CELL, CELL, CELL))
+    for i in range(GRID_WIDTH):
+        for j in range(GRID_HEIGHT):
+            pygame.draw.rect(screen, colors[(i+j)%2], (i*CELL, j*CELL, CELL, CELL))
 
+# Point class for positions
 class Point:
     def __init__(self, x, y):
         self.x = x
         self.y = y
-    def __str__(self):
-        return f"{self.x}, {self.y}"
 
+# Snake stuff
 class Snake:
     def __init__(self):
         self.body = [Point(10, 11), Point(10, 12), Point(10, 13)]
         self.dx = 1
         self.dy = 0
     def move(self):
-        # Move body segments to follow the head
-        for i in range(len(self.body) - 1, 0, -1):
-            self.body[i].x = self.body[i - 1].x
-            self.body[i].y = self.body[i - 1].y
+        # Move segments to follow head
+        for i in range(len(self.body)-1, 0, -1):
+            self.body[i].x = self.body[i-1].x
+            self.body[i].y = self.body[i-1].y
         # Update head position
         self.body[0].x += self.dx
         self.body[0].y += self.dy
+
     def draw(self):
-        # Draw head in red and body segments in yellow
         head = self.body[0]
-        pygame.draw.rect(screen, colorRED, (head.x * CELL, head.y * CELL, CELL, CELL))
+        pygame.draw.rect(screen, colorRED, (head.x*CELL, head.y*CELL, CELL, CELL))
         for segment in self.body[1:]:
-            pygame.draw.rect(screen, colorYELLOW, (segment.x * CELL, segment.y * CELL, CELL, CELL))
-    def check_collision(self, food):
-        # Check if the snake's head collides with the food
+            pygame.draw.rect(screen, colorYELLOW, (segment.x*CELL, segment.y*CELL, CELL, CELL))
+
+    def check_collision_with_food(self, food):
         head = self.body[0]
         if head.x == food.pos.x and head.y == food.pos.y:
-            # Increase snake length
+            # Grow snake
             self.body.append(Point(head.x, head.y))
             return True
         return False
 
-class Food:
-    def __init__(self):
-        # Get grid dimensions based on cell size
-        grid_width = WIDTH // CELL
-        grid_height = HEIGHT // CELL
-        # Randomly place the food within the grid
-        self.pos = Point(random.randint(0, grid_width - 1), random.randint(0, grid_height - 1))
-        # Assign a random weight (affects size and potential score value)
-        self.weight = random.choice([1, 2, 5])
-        # Set the lifetime for the food in milliseconds (e.g., 5 seconds)
-        self.lifetime = 5000  
-        # Record the creation time to track when food should disappear
-        self.created_time = pygame.time.get_ticks()
-    def draw(self):
-        # Adjust food size based on weight (heavier food appears larger)
-        size = CELL + (self.weight - 1) * 5
-        pygame.draw.rect(screen, colorGREEN, (self.pos.x * CELL, self.pos.y * CELL, size, size))
+    def check_death(self):
+        head = self.body[0]
+        # Out of bounds (walls are borders)
+        if head.x < 1 or head.x >= GRID_WIDTH-1 or head.y < 1 or head.y >= GRID_HEIGHT-1:
+            return True
+        # Colliding with itself
+        for segment in self.body[1:]:
+            if head.x == segment.x and head.y == segment.y:
+                return True
+        return False
 
-FPS = 5
+# Food sutff
+class Food:
+    def __init__(self, snake_body):
+        # Avoid walls: only choose from 1 to GRID_WIDTH-2 and similar for height
+        valid = False
+        while not valid:
+            x = random.randint(1, GRID_WIDTH)
+            y = random.randint(1, GRID_HEIGHT)
+            valid = True
+            # Ensure food is not on the snake
+            for segment in snake_body:
+                if segment.x == x and segment.y == y:
+                    valid = False
+                    break
+        self.pos = Point(x, y)
+        self.weight = random.choice([1, 2, 5])
+        # Set color based on weight
+        if self.weight == 1:
+            self.color = colorGREEN
+        elif self.weight == 2:
+            self.color = colorBLUE
+        else:
+            self.color = colorRED
+        self.lifetime = 5000  # ms food lasts
+        self.created_time = pygame.time.get_ticks()
+
+    def draw(self):
+        # Size constant, only color changes
+        pygame.draw.rect(screen, self.color, (self.pos.x*CELL, self.pos.y*CELL, CELL, CELL))
+
 clock = pygame.time.Clock()
 
-food = Food()
-snake = Snake()
+def reset_game():
+    global snake, food, score, level, FPS
+    snake = Snake()
+    food = Food(snake.body)
+    score = 0
+    level = 1
+    FPS = 5
+
+reset_game()
 
 running = True
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        # Change snake direction based on key press
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_RIGHT:
-                snake.dx = 1
-                snake.dy = 0
-            elif event.key == pygame.K_LEFT:
-                snake.dx = -1
-                snake.dy = 0
-            elif event.key == pygame.K_DOWN:
-                snake.dx = 0
-                snake.dy = 1
-            elif event.key == pygame.K_UP:
-                snake.dx = 0
-                snake.dy = -1
+            # Prevent snake from reversing
+            if event.key == pygame.K_RIGHT and snake.dx != -1:
+                snake.dx, snake.dy = 1, 0
+            elif event.key == pygame.K_LEFT and snake.dx != 1:
+                snake.dx, snake.dy = -1, 0
+            elif event.key == pygame.K_DOWN and snake.dy != -1:
+                snake.dx, snake.dy = 0, 1
+            elif event.key == pygame.K_UP and snake.dy != 1:
+                snake.dx, snake.dy = 0, -1
 
     draw_grid_chess()
     snake.move()
 
-    # Check if snake eats the food; if yes, generate new food
-    if snake.check_collision(food):
-        food = Food()
+    # Check death conditions: border and self-collision
+    if snake.check_death():
+        reset_game()
+        continue
 
-    # Check if the food's lifetime has expired; if so, create a new food
+    # Check food collision
+    if snake.check_collision_with_food(food):
+        score += food.weight  # Increase score by food weight
+        # Level up: for every 3 points increase level and speed
+        if score // 3 + 1 > level:
+            level += 1
+            FPS += 2
+        food = Food(snake.body)
+
+    # Replace food if lifetime expired
     if pygame.time.get_ticks() - food.created_time > food.lifetime:
-        food = Food()
+        food = Food(snake.body)
 
     snake.draw()
     food.draw()
+
+    # Display score and level
+    font = pygame.font.SysFont(None, 24)
+    text = font.render(f"Score: {score}  Level: {level}", True, colorBLACK)
+    screen.blit(text, (5, 5))
 
     pygame.display.flip()
     clock.tick(FPS)

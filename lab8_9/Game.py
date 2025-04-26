@@ -1,36 +1,23 @@
 import pygame, sys, random, time
 from pygame.locals import *
-
-# Initializing 
 pygame.init()
-
-# Setting up FPS 
 FPS = 60
 FramePerSec = pygame.time.Clock()
-
-# Creating colors
 BLUE  = (0, 0, 255)
 RED   = (255, 0, 0)
 GREEN = (0, 255, 0)
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 ORANGE = (255, 165, 0)
-
-# Other Variables
 SCREEN_WIDTH = 400
 SCREEN_HEIGHT = 600
 SPEED = 5
 SCORE = 0
 COINS_COLLECTED = 0
-
-# Setting up Fonts
 font = pygame.font.SysFont("Verdana", 60)
 font_small = pygame.font.SysFont("Verdana", 20)
 game_over = font.render("Game Over", True, BLACK)
-
 background = pygame.image.load("AnimatedStreet.png")
-
-# Create a white screen 
 DISPLAYSURF = pygame.display.set_mode((400,600))
 DISPLAYSURF.fill(WHITE)
 pygame.display.set_caption("Game")
