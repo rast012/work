@@ -3,6 +3,134 @@ import csv
 import sys
 from config import config # Import the config function from config.py
 
+# --- New Functions for pattern search, upsert, bulk insert, pagination, delete ---
+
+def get_by_pattern(conn, pattern):
+    """
+    Returns all contacts where first_name, last_name or phone matches the pattern (case-insensitive).
+    """
+    sql = """
+        SELECT contact_id, first_name, last_name, phone, created_at
+          FROM phonebook
+         WHERE first_name ILIKE %(pat)s
+            OR last_name  ILIKE %(pat)s
+            OR phone      ILIKE %(pat)s
+         ORDER BY first_name, last_name
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql, {'pat': f"%{pattern}%"})
+        rows = cur.fetchall()
+    return rows
+
+
+def upsert_user(conn, first_name, last_name, phone):
+    """
+    Inserts a new user or updates the phone if user already exists by name.
+    Returns True if inserted or updated, False on error.
+    """
+    try:
+        with conn.cursor() as cur:
+            # Check existence
+            cur.execute(
+                "SELECT contact_id FROM phonebook WHERE first_name = %s AND \
+                 COALESCE(last_name, '') = COALESCE(%s, '')",
+                (first_name, last_name)
+            )
+            found = cur.fetchone()
+            if found:
+                cur.execute(
+                    "UPDATE phonebook SET phone = %s WHERE contact_id = %s",
+                    (phone, found[0])
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO phonebook(first_name, last_name, phone) VALUES(%s, %s, %s)",
+                    (first_name, last_name, phone)
+                )
+        conn.commit()
+        return True
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(f"Error in upsert_user: {error}")
+        conn.rollback()
+        return False
+
+
+def insert_many_users(conn, entries):
+    """
+    entries: list of tuples (first_name, last_name, phone)
+    Validates phone (digits only). Returns list of invalid entries.
+    Inserts or updates valid ones via upsert_user.
+    """
+    invalid = []
+    for first_name, last_name, phone in entries:
+        if not phone or not re.fullmatch(r'\d+', phone):
+            invalid.append((first_name, last_name, phone))
+            continue
+        success = upsert_user(conn, first_name, last_name, phone)
+        if not success:
+            invalid.append((first_name, last_name, phone))
+    return invalid
+
+
+def query_with_pagination(conn, limit, offset):
+    """
+    Returns contacts with pagination.
+    """
+    sql = """
+        SELECT contact_id, first_name, last_name, phone, created_at
+          FROM phonebook
+         ORDER BY contact_id
+         LIMIT %s OFFSET %s
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql, (limit, offset))
+        return cur.fetchall()
+
+
+def delete_user(conn, first_name=None, last_name=None, phone=None):
+    """
+    Deletes contacts matching first/last name or phone.
+    Returns number of deleted rows.
+    """
+    clauses = []
+    params = []
+
+    if phone:
+        clauses.append("phone = %s")
+        params.append(phone)
+    if first_name:
+        clauses.append("first_name = %s")
+        params.append(first_name)
+    if last_name is not None:
+        clauses.append("last_name = %s")
+        params.append(last_name)
+
+    if not clauses:
+        print("Error: must provide at least first_name, last_name, or phone to delete.")
+        return 0
+
+    sql = f"DELETE FROM phonebook WHERE {' OR '.join(clauses)}"
+    with conn.cursor() as cur:
+        cur.execute(sql, params)
+        deleted = cur.rowcount
+    conn.commit()
+    return deleted
+
+# --- Existing functions ---
+
+def connect():
+    conn = None
+    try:
+        params = config()
+        if params is None:
+            print("Database configuration could not be loaded. Exiting.")
+            sys.exit(1)
+        conn = psycopg2.connect(**params)
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(f"Error connecting: {error}")
+        sys.exit(1)
+    return conn
+
 def connect():
     """ Connect to the PostgreSQL database server """
     conn = None
